@@ -40,14 +40,20 @@ namespace ByteBank.View
 
             AtualizarView(new List<string>(), TimeSpan.Zero);
 
-            var inicio = DateTime.Now;          
-            
+            var inicio = DateTime.Now;
+
+            foreach (var conta in contas)
+            {
+                var resultadoProcessamento = r_Servico.ConsolidarMovimentacao(conta);
+                resultado.Add(resultadoProcessamento);
+            }
+                       
             var fim = DateTime.Now;
 
             AtualizarView(resultado, fim - inicio);
         }
 
-        private void AtualizarView(List<string> result, TimeSpan elapsedTime)
+        private void AtualizarView(List<String> result, TimeSpan elapsedTime)
         {
             var tempoDecorrido = $"{ elapsedTime.Seconds }.{ elapsedTime.Milliseconds} segundos!";
             var mensagem = $"Processamento de {result.Count} clientes em {tempoDecorrido}";
