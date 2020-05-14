@@ -34,26 +34,42 @@ namespace ByteBank.View
 
         private void BtnProcessar_Click(object sender, RoutedEventArgs e)
         {
-            var contas = r_Repositorio.GetContaClientes();          
+            var contas = r_Repositorio.GetContaClientes();
 
+            var contas_parte1 = contas.Take(contas.Count() / 2);
+            var contas_parte2 = contas.Skip(contas.Count() / 2);
+            
             var resultado = new List<string>();
 
             AtualizarView(new List<string>(), TimeSpan.Zero);
 
             var inicio = DateTime.Now;
 
-            foreach (var conta in contas)
-            {
-                var resultadoProcessamento = r_Servico.ConsolidarMovimentacao(conta);
-                resultado.Add(resultadoProcessamento);
-            }
+            var thread_parte1 = new Thread(() => {
+                foreach (var conta in contas_parte1)
+                {
+                    var resultadoProcessamento = r_Servico.ConsolidarMovimentacao(conta);
+                    resultado.Add(resultadoProcessamento);
+                }
+            });
+
+            var thread_parte2 = new Thread(() => {
+                foreach (var conta in contas_parte2)
+                {
+                    var resultadoProcessamento = r_Servico.ConsolidarMovimentacao(conta);
+                    resultado.Add(resultadoProcessamento);
+                }
+            });
+
+            thread_parte1.Start();
+            thread_parte2.Start();
                        
             var fim = DateTime.Now;
 
             AtualizarView(resultado, fim - inicio);
         }
 
-        private void AtualizarView(List<String> result, TimeSpan elapsedTime)
+        private void AtualizarView(List<string> result, TimeSpan elapsedTime)
         {
             var tempoDecorrido = $"{ elapsedTime.Seconds }.{ elapsedTime.Milliseconds} segundos!";
             var mensagem = $"Processamento de {result.Count} clientes em {tempoDecorrido}";
