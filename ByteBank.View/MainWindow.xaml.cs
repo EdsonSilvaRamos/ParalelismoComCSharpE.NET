@@ -36,8 +36,12 @@ namespace ByteBank.View
         {
             var contas = r_Repositorio.GetContaClientes();
 
-            var contas_parte1 = contas.Take(contas.Count() / 2);
-            var contas_parte2 = contas.Skip(contas.Count() / 2);
+            var contasQuantidadesPorThread = contas.Count() / 4;
+
+            var contas_parte1 = contas.Take(contasQuantidadesPorThread);
+            var contas_parte2 = contas.Skip(contasQuantidadesPorThread).Take(contasQuantidadesPorThread);
+            var contas_parte3 = contas.Skip(contasQuantidadesPorThread*2).Take(contasQuantidadesPorThread);
+            var contas_parte4 = contas.Skip(contasQuantidadesPorThread*3);
             
             var resultado = new List<string>();
 
@@ -61,8 +65,31 @@ namespace ByteBank.View
                 }
             });
 
+            var thread_parte3 = new Thread(() => {
+                foreach (var conta in contas_parte3)
+                {
+                    var resultadoProcessamento = r_Servico.ConsolidarMovimentacao(conta);
+                    resultado.Add(resultadoProcessamento);
+                }
+            });
+
+            var thread_parte4 = new Thread(() => {
+                foreach (var conta in contas_parte4)
+                {
+                    var resultadoProcessamento = r_Servico.ConsolidarMovimentacao(conta);
+                    resultado.Add(resultadoProcessamento);
+                }
+            });
+
             thread_parte1.Start();
             thread_parte2.Start();
+            thread_parte3.Start();
+            thread_parte4.Start();
+
+            while (thread_parte1.IsAlive || thread_parte2.IsAlive || thread_parte3.IsAlive || thread_parte4.IsAlive)
+            {
+                Thread.Sleep(250);
+            }
                        
             var fim = DateTime.Now;
 
