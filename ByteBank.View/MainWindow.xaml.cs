@@ -13,6 +13,7 @@ using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
@@ -34,8 +35,10 @@ namespace ByteBank.View
 
         private void BtnProcessar_Click(object sender, RoutedEventArgs e)
         {
-            var contas = r_Repositorio.GetContaClientes();          
-            
+            var taskSchedulerUI = TaskScheduler.FromCurrentSynchronizationContext();
+            BtnProcessar.IsEnabled = false;
+
+            var contas = r_Repositorio.GetContaClientes();
             var resultado = new List<string>();
 
             AtualizarView(new List<string>(), TimeSpan.Zero);
@@ -51,11 +54,16 @@ namespace ByteBank.View
                 });
             }).ToArray();
 
-            Task.WaitAll(contasTarefas);
-            
-            var fim = DateTime.Now;
-
-            AtualizarView(resultado, fim - inicio);
+            Task.WhenAll(contasTarefas)
+                .ContinueWith(task =>
+                {
+                    var fim = DateTime.Now;
+                    AtualizarView(resultado, fim - inicio);
+                }, taskSchedulerUI)
+                .ContinueWith(task =>
+                {
+                    BtnProcessar.IsEnabled = true;
+                }, taskSchedulerUI);
         }
 
         private void AtualizarView(List<string> result, TimeSpan elapsedTime)
