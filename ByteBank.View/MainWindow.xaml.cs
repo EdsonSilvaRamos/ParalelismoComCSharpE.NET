@@ -1,6 +1,7 @@
 ﻿using ByteBank.Core.Model;
 using ByteBank.Core.Repository;
 using ByteBank.Core.Service;
+using ByteBank.View.Utils;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,6 +25,7 @@ namespace ByteBank.View
     {
         private readonly ContaClienteRepository r_Repositorio;
         private readonly ContaClienteService r_Servico;
+        private CancellationTokenSource _cts;
 
         public MainWindow()
         {
@@ -37,6 +39,8 @@ namespace ByteBank.View
         {
             BtnProcessar.IsEnabled = false;
 
+            _cts = new CancellationTokenSource();
+
             var contas = r_Repositorio.GetContaClientes();
 
             PgsProgresso.Maximum = contas.Count();
@@ -44,37 +48,52 @@ namespace ByteBank.View
             LimparView();
 
             var inicio = DateTime.Now;
-            var resultado = await ConsolidarContas(contas);
-            var fim = DateTime.Now;
 
-            AtualizarView(resultado, fim - inicio);
+            BtnCancelar.IsEnabled = true;            
 
-            BtnProcessar.IsEnabled = true;
+            try
+            {
+                var progress = new Progress<string>(str => PgsProgresso.Value++);
+                var resultado = await ConsolidarContas(contas, progress, _cts.Token);
+                var fim = DateTime.Now;
+
+                AtualizarView(resultado, fim - inicio);
+            }
+            catch (OperationCanceledException)
+            {
+                TxtTempo.Text = "Operação cancelada pelo usuário";
+            }
+            finally
+            {
+                BtnProcessar.IsEnabled = true;
+                BtnCancelar.IsEnabled = false;
+            }
         }
 
-        private async Task<string[]> ConsolidarContas(IEnumerable<ContaCliente> contas)
+        private void BtnCancelar_Click(object sender, RoutedEventArgs e)
         {
-            var taskSchedulerGui = TaskScheduler.FromCurrentSynchronizationContext();
+            BtnCancelar.IsEnabled = false;
+            _cts.Cancel();
+            PgsProgresso.Value = 0;
+        }
+
+        private async Task<string[]> ConsolidarContas(IEnumerable<ContaCliente> contas, IProgress<string> ReportadorDeProgresso, CancellationToken ct)
+        {   
             var tasks = contas.Select(conta =>
                Task.Factory.StartNew(() =>
                    {
-                       var resultadoConsolidacao = r_Servico.ConsolidarMovimentacao(conta);
+                       ct.ThrowIfCancellationRequested();
 
-                       // Não utilizaremos atualização do PgsProgresso na Thread de Trabalho
-                       //PgsProgresso.Value++;
+                       var resultadoConsolidacao = r_Servico.ConsolidarMovimentacao(conta, ct);
+                       ReportadorDeProgresso.Report(resultadoConsolidacao);
 
-                       Task.Factory.StartNew(
-                           () => PgsProgresso.Value++,
-                           CancellationToken.None,
-                           TaskCreationOptions.None,
-                           taskSchedulerGui);
+                       ct.ThrowIfCancellationRequested();
 
                        return resultadoConsolidacao;
                    })
                 );
 
             return await Task.WhenAll(tasks);
-
         }
 
         private void LimparView()
